@@ -22,6 +22,7 @@ class FP8GroupedMMRecipe(Enum):
     """FP8 recipes for grouped matrix multiplication."""
 
     FP8_ROWWISE = "fp8_rowwise"
+    FP8_BLOCKWISE = "fp8_blockwise"
 
 
 class MXFP8GroupedMMRecipe(Enum):
@@ -58,6 +59,43 @@ class FP8GroupedMMConfig(GroupedMMConfig):
             return cls()
         else:
             raise ValueError(f"Unsupported FP8 recipe: {recipe}")
+
+
+@dataclass
+class FP8BlockwiseGroupedMMConfig(GroupedMMConfig):
+    """
+    Configuration for FP8 blockwise grouped matrix multiplication.
+
+    Uses (1, block_size) scaling granularity for activations and
+    (block_size, block_size) scaling granularity for weights, following
+    the DeepSeek-V3 blockwise FP8 approach adapted for MoE/GroupedGEMM.
+
+    When use_triton=True, uses a custom Triton GEMM kernel that fuses
+    blockwise dequantization into the accumulation loop (real FP8 compute).
+    When use_triton=False, uses an emulated path that dequantizes to high
+    precision before calling torch._grouped_mm.
+    """
+
+    # Block size for FP8 blockwise quantization.
+    block_size: int = 128
+
+    # Output dtype for the grouped GEMMs.
+    out_dtype: Optional[torch.dtype] = torch.bfloat16
+
+    # When True, use custom Triton GEMM kernel with fused blockwise dequant.
+    # When False, use emulated path (quant → dequant → torch._grouped_mm).
+    use_triton: bool = True
+
+    @classmethod
+    def from_recipe(
+        cls,
+        recipe: FP8GroupedMMRecipe,
+    ) -> "FP8BlockwiseGroupedMMConfig":
+        """Factory method to create a FP8BlockwiseGroupedMMConfig from a FP8GroupedMMRecipe."""
+        if recipe == FP8GroupedMMRecipe.FP8_BLOCKWISE:
+            return cls()
+        else:
+            raise ValueError(f"Unsupported FP8 blockwise recipe: {recipe}")
 
 
 # register as pytree constant so we can use dynamo nonstrict trace in torchao.prototype.moe_training.ep
@@ -149,6 +187,7 @@ class MXFP8GroupedMMConfig(GroupedMMConfig):
 
 
 @register_quantize_module_handler(FP8GroupedMMConfig)
+@register_quantize_module_handler(FP8BlockwiseGroupedMMConfig)
 @register_quantize_module_handler(MXFP8GroupedMMConfig)
 def _moe_training_transform(
     module: nn.Module,

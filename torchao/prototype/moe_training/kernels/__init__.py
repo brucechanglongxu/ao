@@ -1,3 +1,6 @@
+from torchao.prototype.moe_training.kernels.float8_blockwise import (
+    fp8_blockwise_gemm as fp8_blockwise_gemm,
+)
 from torchao.prototype.moe_training.kernels.float8_rowwise import (
     triton_fp8_rowwise_3d_transpose_rhs as triton_fp8_rowwise_3d_transpose_rhs,
 )

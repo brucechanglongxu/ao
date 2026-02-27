@@ -16,9 +16,13 @@ from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import MixedPrecisionPolicy
 
 from torchao.prototype.moe_training.config import (
+    FP8BlockwiseGroupedMMConfig,
     FP8GroupedMMConfig,
     GroupedMMConfig,
     MXFP8GroupedMMConfig,
+)
+from torchao.prototype.moe_training.fp8_blockwise_grouped_mm import (
+    _to_fp8_blockwise_then_scaled_grouped_mm,
 )
 from torchao.prototype.moe_training.fp8_grouped_mm import (
     _to_fp8_rowwise_then_scaled_grouped_mm,
@@ -264,6 +268,15 @@ def _quantize_then_scaled_grouped_mm(
             B_t,
             offs,
             config.out_dtype,
+        )
+    elif isinstance(config, FP8BlockwiseGroupedMMConfig):
+        return _to_fp8_blockwise_then_scaled_grouped_mm(
+            A,
+            B_t,
+            offs,
+            block_size=config.block_size,
+            out_dtype=config.out_dtype,
+            use_triton=config.use_triton,
         )
     elif isinstance(config, MXFP8GroupedMMConfig):
         return _to_mxfp8_then_scaled_grouped_mm(
